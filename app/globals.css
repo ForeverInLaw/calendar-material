@@ -1,0 +1,349 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 142.1 76.2% 36.3%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 137 41% 65%;
+    --primary-foreground: 0 0% 10%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 20%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 95%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 137 41% 65%;
+
+    /* Material Design 3 elevation system */
+    --elevation-1: 0px 1px 3px 0px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+    --elevation-2: 0px 2px 6px 0px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+    --elevation-3: 0px 4px 8px 0px rgba(0, 0, 0, 0.15), 0px 1px 3px 0px rgba(0, 0, 0, 0.3);
+    --elevation-4: 0px 6px 10px 0px rgba(0, 0, 0, 0.15), 0px 2px 3px 0px rgba(0, 0, 0, 0.3);
+    --elevation-5: 0px 8px 12px 0px rgba(0, 0, 0, 0.15), 0px 4px 4px 0px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* iOS-like animations */
+@keyframes spring-in {
+  0% {
+    transform: scale(0.9) translateY(10px);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.02) translateY(-2px);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-left {
+  0% {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes ios-bounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes month-slide-out-right {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes month-slide-out-left {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes month-slide-in-right {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes month-slide-in-left {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-spring-in {
+  animation: spring-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-slide-in-left {
+  animation: slide-in-from-left 0.3s ease-out;
+}
+
+.animate-ios-bounce {
+  animation: ios-bounce 0.2s ease-out;
+}
+
+/* Smooth transitions for all interactive elements */
+button,
+input,
+textarea,
+select {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced touch targets for mobile */
+@media (max-width: 768px) {
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+}
+
+/* Material Design 3 elevation classes */
+.dark .md3-elevation-1 {
+  box-shadow: var(--elevation-1);
+}
+
+.dark .md3-elevation-2 {
+  box-shadow: var(--elevation-2);
+}
+
+.dark .md3-elevation-3 {
+  box-shadow: var(--elevation-3);
+}
+
+.dark .md3-elevation-4 {
+  box-shadow: var(--elevation-4);
+}
+
+.dark .md3-elevation-5 {
+  box-shadow: var(--elevation-5);
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Safe area for mobile devices */
+@supports (padding: max(0px)) {
+  .safe-area-inset {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+  }
+}
+
+/* Mobile-optimized calendar styles */
+@media (max-width: 640px) {
+  /* Compact calendar grid for mobile */
+  .mobile-calendar-grid {
+    font-size: 12px;
+  }
+
+  /* Better touch targets */
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Optimized event display */
+  .mobile-event {
+    font-size: 8px;
+    line-height: 1.2;
+    padding: 2px 4px;
+  }
+
+  /* Improved readability */
+  .mobile-date-number {
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+/* Landscape orientation optimizations */
+@media (max-width: 640px) and (orientation: landscape) {
+  .landscape-calendar {
+    height: calc(100vh - 120px);
+  }
+
+  .landscape-calendar-grid {
+    min-height: 50px;
+  }
+}
+
+/* Very small screens (< 375px) */
+@media (max-width: 374px) {
+  .xs-calendar-grid {
+    min-height: 50px;
+  }
+
+  .xs-event {
+    font-size: 7px;
+    padding: 1px 2px;
+  }
+
+  .xs-date-number {
+    font-size: 10px;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .calendar-grid {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Navigation spacing improvements */
+.nav-container {
+  padding-top: clamp(1rem, 4vw, 2rem);
+  padding-bottom: clamp(0.5rem, 2vw, 1rem);
+}
+
+/* Responsive navigation spacing */
+@media (min-width: 768px) {
+  .desktop-nav {
+    padding-top: clamp(1.5rem, 5vw, 2.5rem);
+    padding-bottom: clamp(0.75rem, 2.5vw, 1.25rem);
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-nav {
+    padding-top: clamp(1rem, 3vw, 1.5rem);
+    padding-bottom: clamp(0.5rem, 1.5vw, 0.75rem);
+  }
+}
+
+/* Improved visual hierarchy */
+.header-spacing {
+  margin-bottom: clamp(1rem, 3vw, 2rem);
+}
+
+/* Better content spacing */
+.content-container {
+  padding-left: clamp(0.75rem, 2vw, 1.5rem);
+  padding-right: clamp(0.75rem, 2vw, 1.5rem);
+  padding-bottom: clamp(1rem, 3vw, 2rem);
+}
+
+/* Enhanced mobile spacing */
+@media (max-width: 640px) {
+  .mobile-content {
+    padding-top: clamp(0.5rem, 2vw, 1rem);
+  }
+}
+
+/* Desktop content spacing */
+@media (min-width: 768px) {
+  .desktop-content {
+    padding-left: clamp(1.5rem, 4vw, 3rem);
+    padding-right: clamp(1.5rem, 4vw, 3rem);
+  }
+}
