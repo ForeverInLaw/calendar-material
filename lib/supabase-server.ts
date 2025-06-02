@@ -1,5 +1,5 @@
 // lib/supabase-server.ts
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,6 +15,23 @@ type MockSupabaseClient = {
   from: (table: string) => any; // Keep 'any' for simplicity or type properly
 };
 
+export const createServiceRoleClient = (): SupabaseClient => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Supabase URL or Service Role Key is missing for service client.");
+    // Можно вернуть мок или выбросить ошибку
+    throw new Error("Service client configuration error.");
+  }
+  return createSupabaseClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      // Отключаем автоматическое обновление токена, так как это сервисный ключ
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+};
 
 export const createServerClient = (): SupabaseClient | MockSupabaseClient => {
   if (!supabaseUrl || !supabaseAnonKey) {
