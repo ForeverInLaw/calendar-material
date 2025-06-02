@@ -1,8 +1,8 @@
 // /app/api/cron/check-event-reminders/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server"; // Убедитесь, что эта функция создана и экспортируется
-import { formatInTimeZone, toDate } from 'date-fns-tz';
-import { parseISO, addMinutes } from 'date-fns'; 
+import { formatInTimeZone, toDate, zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
+import { parseISO, addMinutes, parse } from 'date-fns';
 // `parseISO` и `toDate` могут быть полезны для более гибкой работы с датами.
 // `parse` из 'date-fns-tz' (как в предыдущем примере) тоже подойдет, если формат строки известен.
 
@@ -63,21 +63,86 @@ export async function GET(request: Request) {
     const eventsToUpdateReminderSent = [];
 
     for (const event of events) {
+      let eventStartDateTimeInTargetTZ: Date; // Это будет объект Date, чьи "локальные" компоненты соответствуют targetTimeZone
+      let eventStartDateTimeUtc: Date;      // Это будет объект Date, представляющий тот же момент времени, но в UTC
       try {
-        // event.event_date (YYYY-MM-DD), event.start_time (HH:MM или HH:MM:SS)
-        // Эти значения предполагаются как дата/время в targetTimeZone
-        const eventStartDateTimeStr = `${event.event_date}T${event.start_time}`;
-        
-        let eventStartDateTimeInTargetTZ: Date;
-        try {
-            // Пытаемся распарсить с секундами, потом без, если не вышло
-            if (event.start_time.split(':').length === 3) {
-                eventStartDateTimeInTargetTZ = toDate(parseISO(eventStartDateTimeStr), { timeZone: targetTimeZone });
-            } else {
-                 eventStartDateTimeInTargetTZ = toDate(parseISO(eventStartDateTimeStr + ":00"), { timeZone: targetTimeZone });
+            const dateTimeStringFromDb = `${event.event_date} ${event.start_time}`;
+            let baseFormat = 'yyyy-MM-dd HH:mm';
+            if (event.start_time && event.start_time.split(':').length === 3) {
+                baseFormat = 'yyyy-MM-dd HH:mm:ss';
             }
-           
-            if (isNaN(eventStartDateTimeInTargetTZ.getTime())) throw new Error("Parsed date is NaN");
+
+            // Шаг 1: Парсим строку из БД, как будто это дата и время в targetTimeZone.
+            // `parse` (из date-fns) создает объект Date. Этот объект будет иметь UTC-эквивалент,
+            // основанный на системном часовом поясе сервера, ЕСЛИ мы не скажем ему иное.
+            // Чтобы это работало правильно с `date-fns-tz`, мы должны создать объект Date,
+            // который *представляет* нужный момент времени.
+            
+            // `zonedTimeToUtc` берет строку и часовой пояс и возвращает Date объект в UTC.
+            // `utcToZonedTime` берет UTC Date объект и часовой пояс и возвращает Date объект в этой зоне.
+
+            // Правильный способ:
+            // 1. Собрать строку.
+            // 2. Использовать функцию, которая парсит строку + таймзону и дает UTC объект Date.
+            //    или парсит строку как "локальную для зоны" и дает объект Date, чьи компоненты в этой зоне.
+
+            // Попробуем так:
+            // Сначала создаем объект Date, как будто числа из event_date и start_time являются компонентами UTC даты
+            const [year, month, day] = event.event_date.split('-').map(Number);
+            const [hour, minute, second = 0] = event.start_time.split(':').map(Number);
+            
+            // Создаем UTC дату из этих компонентов. Month в JS Date с 0.
+            const utcDateFromComponents = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+            console.log(`[REMINDERS] Step 0 - UTC Date from components: ${utcDateFromComponents.toISOString()}`);
+
+
+            // Теперь, если мы считаем, что YYYY-MM-DD HH:MM:SS из базы - это УЖЕ время в targetTimeZone (UTC+2),
+            // то utcDateFromComponents (03:57Z) НЕПРАВИЛЬНО. Нам нужно, чтобы 03:57 в UTC+2 стало 01:57Z.
+            
+            // Новый подход:
+            const dateString = event.event_date;
+            const timeString = event.start_time.split(':').length === 2 ? event.start_time + ':00' : event.start_time;
+
+            // Создаем объект Date, который корректно представляет "настенное" время в указанной зоне.
+            // `parse` из date-fns-tz (если бы она была) была бы идеальна.
+            // Используем `parse` из `date-fns` и `toDate` из `date-fns-tz`
+            
+            const tempParsedDate = parse(`${dateString} ${timeString}`, 'yyyy-MM-dd HH:mm:ss', new Date());
+            if (isNaN(tempParsedDate.getTime())) {
+                console.error(`[REMINDERS] Initial parse failed for "${dateString} ${timeString}"`);
+                throw new Error("Initial parse failed");
+            }
+            // tempParsedDate теперь объект Date, который JavaScript интерпретирует в системном TZ сервера.
+            // Нам нужно "сказать", что эти цифры на самом деле относятся к targetTimeZone.
+            
+            // eventStartDateTimeInTargetTZ будет объектом Date, чьи .getHours() и т.д. будут в targetTimeZone
+            eventStartDateTimeInTargetTZ = toDate(tempParsedDate, { timeZone: targetTimeZone });
+            // НО! Если tempParsedDate было 03:57 (серверное UTC), то toDate(..., {timeZone: 'Europe/Berlin'})
+            // даст нам объект, который при вызове getHours() вернет 5, если сервер в UTC.
+            // Это не то, что нам нужно.
+
+            // **Самый надежный способ, если event_date и start_time - это "настенное" время в targetTimeZone:**
+            const ianaTimeZone = targetTimeZone; // 'Europe/Berlin'
+            const dateTimeStrForZone = `${event.event_date}T${timeString}`; // "2025-06-02T03:57:00"
+            
+            // zonedTimeToUtc: берет "настенное" время и зону, возвращает эквивалентный UTC Date объект.
+            // Например, "2025-06-02T03:57:00" в "Europe/Berlin" (UTC+2) станет 2025-06-02T01:57:00Z.
+            eventStartDateTimeUtc = zonedTimeToUtc(dateTimeStrForZone, ianaTimeZone);
+            
+            // utcToZonedTime: берет UTC Date объект и зону, возвращает "настенное" время в этой зоне.
+            // Это будет объект Date, у которого getHours() вернет 3 для нашего примера, если выводить в консоль
+            // или форматировать с учетом этой зоны.
+            eventStartDateTimeInTargetTZ = utcToZonedTime(eventStartDateTimeUtc, ianaTimeZone);
+
+
+            if (isNaN(eventStartDateTimeInTargetTZ.getTime())) {
+                console.error(`[REMINDERS] Final date conversion resulted in NaN for event ${event.id}`);
+                throw new Error("Final date conversion resulted in NaN");
+            }
+            console.log(`[REMINDERS] Event: "${event.title}" (ID: ${event.id})`);
+            console.log(`  DB Date: ${event.event_date}, DB Time: ${event.start_time}`);
+            console.log(`  Interpreted as Zoned Time (${ianaTimeZone}): ${formatInTimeZone(eventStartDateTimeInTargetTZ, ianaTimeZone, 'yyyy-MM-dd HH:mm:ssXXX')}`);
+            console.log(`  Equivalent UTC: ${eventStartDateTimeUtc.toISOString()}`);
 
         } catch (parseError: any) {
             console.error(`[REMINDERS] Invalid date/time format for event ${event.id}: "${eventStartDateTimeStr}". Error: ${parseError.message}`);
