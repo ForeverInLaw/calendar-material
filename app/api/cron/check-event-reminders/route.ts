@@ -1,8 +1,8 @@
 // /app/api/cron/check-event-reminders/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
-// Используем актуальные имена функций из date-fns-tz >= 3.0.0
-import { toUtcTime, toZonedTime, formatInTimeZone, toDate } from 'date-fns-tz';
+// Используем fromZonedTime и toZonedTime
+import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { addMinutes, parse } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
@@ -21,11 +21,10 @@ export async function GET(request: Request) {
     const targetTimeZone = process.env.TARGET_TIMEZONE || 'Europe/Berlin';
     console.log(`🔄 [REMINDERS] Checking for event reminders (target timezone: ${targetTimeZone})...`);
 
-    const nowUtc = new Date(); // Это текущее время сервера, которое по своей природе является UTC моментом
-    // toDate из date-fns-tz здесь правильно создаст объект Date,
-    // чьи "локальные" компоненты будут соответствовать targetTimeZone для момента nowUtc
-    const currentDateTimeInTargetTZObject = toDate(nowUtc, { timeZone: targetTimeZone });
-
+    const nowUtc = new Date(); // Текущий момент времени (в UTC)
+    // currentDateTimeInTargetTZObject: объект Date, чьи "локальные" компоненты (getHours, etc.)
+    // будут соответствовать текущему времени в targetTimeZone.
+    const currentDateTimeInTargetTZObject = toZonedTime(nowUtc, targetTimeZone);
 
     console.log(`[REMINDERS] Current datetime in ${targetTimeZone}: ${formatInTimeZone(currentDateTimeInTargetTZObject, targetTimeZone, 'yyyy-MM-dd HH:mm:ssXXX')}`);
     console.log(`[REMINDERS] (Server UTC time was: ${nowUtc.toISOString()})`);
@@ -59,7 +58,6 @@ export async function GET(request: Request) {
     for (const event of events) {
       try {
         let eventStartDateTimeInTargetTZ: Date; // Объект Date, компоненты которого в targetTimeZone
-        let eventStartDateTimeActualUtc: Date;    // Объект Date, представляющий тот же момент времени, но в UTC
 
         const dateString = event.event_date;
         let timeString = event.start_time;
@@ -74,12 +72,14 @@ export async function GET(request: Request) {
         // dateTimeStrForZone - это "настенное" время события, как оно должно быть в targetTimeZone
         const dateTimeStrForZone = `${dateString}T${timeString}`; // "YYYY-MM-DDTHH:MM:SS"
 
-        // toUtcTime: берет "настенное" время и зону, возвращает эквивалентный UTC Date объект.
+        // fromZonedTime: берет "настенное" время (dateTimeStrForZone) и зону (ianaTimeZone),
+        // возвращает эквивалентный UTC Date объект.
         // Например, "2025-06-02T03:57:00" в "Europe/Berlin" (UTC+2) станет Date объектом для 2025-06-02T01:57:00Z.
-        eventStartDateTimeActualUtc = toUtcTime(dateTimeStrForZone, ianaTimeZone);
+        const eventStartDateTimeActualUtc = fromZonedTime(dateTimeStrForZone, ianaTimeZone);
         
         // toZonedTime: берет UTC Date объект и зону, возвращает "настенное" время в этой зоне.
         // Этот объект Date будет иметь getHours() и т.д., соответствующие targetTimeZone.
+        // Для eventStartDateTimeInTargetTZ это будет "03:57:00" в "Europe/Berlin".
         eventStartDateTimeInTargetTZ = toZonedTime(eventStartDateTimeActualUtc, ianaTimeZone);
 
         if (isNaN(eventStartDateTimeInTargetTZ.getTime())) {
