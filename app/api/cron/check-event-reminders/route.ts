@@ -36,7 +36,7 @@ export async function GET(request: Request) {
         start_time,
         end_time,
         location,
-        color, /* Добавил color, если он нужен для сообщения, хотя в примере не используется */
+        color,
         reminder_minutes,
         users!inner(telegram_chat_id, reminder_notifications_enabled)
       `)
