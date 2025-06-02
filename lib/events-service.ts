@@ -31,7 +31,7 @@ export function appEventToDbEvent(
     end_time: event.endTime,
     location: event.location || null,
     color: event.color,
-    reminder_minutes: event.reminder || 15,
+    reminder_minutes: typeof event.reminder === 'number' ? event.reminder : 15,
     reminder_sent: false,
   }
 }
