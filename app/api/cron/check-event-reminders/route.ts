@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       `)
       .eq("reminder_sent", false)
       .gt("reminder_minutes", 0)
-      .not("users.telegram_chat_id", "is", null);
+      .not("users.telegram_chat_id", "is", null)
       .eq("users.reminder_notifications_enabled", true);
 
     if (error) {
