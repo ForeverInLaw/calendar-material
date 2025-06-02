@@ -65,7 +65,6 @@
     "vaul": "latest",
     "zod": "^3.24.1",
     "date-fns-tz": "latest",
-    "date-fns": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
