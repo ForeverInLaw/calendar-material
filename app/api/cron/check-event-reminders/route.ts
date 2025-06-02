@@ -1,7 +1,8 @@
 // /app/api/cron/check-event-reminders/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server"; // Убедитесь, что эта функция создана и экспортируется
-import { formatInTimeZone, addMinutes, parseISO, toDate } from 'date-fns-tz';
+import { formatInTimeZone, toDate } from 'date-fns-tz';
+import { parseISO, addMinutes } from 'date-fns'; 
 // `parseISO` и `toDate` могут быть полезны для более гибкой работы с датами.
 // `parse` из 'date-fns-tz' (как в предыдущем примере) тоже подойдет, если формат строки известен.
 
