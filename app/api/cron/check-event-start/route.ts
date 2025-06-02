@@ -1,7 +1,8 @@
 // app/api/cron/check-event-start/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+//import { createServerClient } from "@/lib/supabase-server";
 import { formatInTimeZone } from 'date-fns-tz'; // Импортируем функцию
+import { createServiceRoleClient } from "@/lib/supabase-server"; 
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     console.log("🔄 Checking for events starting now (target timezone: UTC+2)...");
 
     const targetTimeZone = 'Europe/Berlin'; // Пример для UTC+2 (Центральноевропейское время)
