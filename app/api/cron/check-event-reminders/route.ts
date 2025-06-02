@@ -1,7 +1,8 @@
 // /app/api/cron/check-event-reminders/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
-import * as dateFnsTz from 'date-fns-tz';
+// Используем актуальные имена функций из date-fns-tz >= 3.0.0
+import { toUtcTime, toZonedTime, formatInTimeZone, toDate } from 'date-fns-tz';
 import { addMinutes, parse } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
@@ -20,24 +21,19 @@ export async function GET(request: Request) {
     const targetTimeZone = process.env.TARGET_TIMEZONE || 'Europe/Berlin';
     console.log(`🔄 [REMINDERS] Checking for event reminders (target timezone: ${targetTimeZone})...`);
 
-    const nowUtc = new Date();
-    const currentDateTimeInTargetTZObject = dateFnsTz.toDate(nowUtc, { timeZone: targetTimeZone });
+    const nowUtc = new Date(); // Это текущее время сервера, которое по своей природе является UTC моментом
+    // toDate из date-fns-tz здесь правильно создаст объект Date,
+    // чьи "локальные" компоненты будут соответствовать targetTimeZone для момента nowUtc
+    const currentDateTimeInTargetTZObject = toDate(nowUtc, { timeZone: targetTimeZone });
 
-    console.log(`[REMINDERS] Current datetime in ${targetTimeZone}: ${dateFnsTz.formatInTimeZone(currentDateTimeInTargetTZObject, targetTimeZone, 'yyyy-MM-dd HH:mm:ssXXX')}`);
+
+    console.log(`[REMINDERS] Current datetime in ${targetTimeZone}: ${formatInTimeZone(currentDateTimeInTargetTZObject, targetTimeZone, 'yyyy-MM-dd HH:mm:ssXXX')}`);
     console.log(`[REMINDERS] (Server UTC time was: ${nowUtc.toISOString()})`);
 
     const { data: events, error } = await supabase
       .from("events")
       .select(`
-        id,
-        title,
-        description,
-        event_date,
-        start_time,
-        end_time,
-        location,
-        color,
-        reminder_minutes,
+        id, title, description, event_date, start_time, end_time, location, color, reminder_minutes,
         users!inner(telegram_chat_id, reminder_notifications_enabled)
       `)
       .eq("reminder_sent", false)
@@ -61,57 +57,48 @@ export async function GET(request: Request) {
     const eventsToUpdateReminderSent = [];
 
     for (const event of events) {
-      try { // ЕДИНСТВЕННЫЙ TRY ВНУТРИ ЦИКЛА ДЛЯ ВСЕЙ ЛОГИКИ ОБРАБОТКИ ОДНОГО СОБЫТИЯ
-        let eventStartDateTimeInTargetTZ: Date;
-        let eventStartDateTimeUtc: Date;
+      try {
+        let eventStartDateTimeInTargetTZ: Date; // Объект Date, компоненты которого в targetTimeZone
+        let eventStartDateTimeActualUtc: Date;    // Объект Date, представляющий тот же момент времени, но в UTC
 
-        const dateString = event.event_date; // YYYY-MM-DD
-        // Обеспечиваем, чтобы timeString всегда был HH:MM:SS
+        const dateString = event.event_date;
         let timeString = event.start_time;
         if (event.start_time && event.start_time.split(':').length === 2) {
-            timeString = event.start_time + ':00'; // Добавляем секунды, если их нет
-        } else if (!event.start_time) { // Обработка случая, если start_time пустой (маловероятно, но для защиты)
+            timeString = event.start_time + ':00';
+        } else if (!event.start_time) {
             console.error(`[REMINDERS] Event ${event.id} has missing start_time.`);
             throw new Error(`Event ${event.id} has missing start_time.`);
         }
         
         const ianaTimeZone = targetTimeZone;
+        // dateTimeStrForZone - это "настенное" время события, как оно должно быть в targetTimeZone
         const dateTimeStrForZone = `${dateString}T${timeString}`; // "YYYY-MM-DDTHH:MM:SS"
 
-        eventStartDateTimeUtc = dateFnsTz.zonedTimeToUtc(dateTimeStrForZone, ianaTimeZone);
-        eventStartDateTimeInTargetTZ = dateFnsTz.utcToZonedTime(eventStartDateTimeUtc, ianaTimeZone);
+        // toUtcTime: берет "настенное" время и зону, возвращает эквивалентный UTC Date объект.
+        // Например, "2025-06-02T03:57:00" в "Europe/Berlin" (UTC+2) станет Date объектом для 2025-06-02T01:57:00Z.
+        eventStartDateTimeActualUtc = toUtcTime(dateTimeStrForZone, ianaTimeZone);
+        
+        // toZonedTime: берет UTC Date объект и зону, возвращает "настенное" время в этой зоне.
+        // Этот объект Date будет иметь getHours() и т.д., соответствующие targetTimeZone.
+        eventStartDateTimeInTargetTZ = toZonedTime(eventStartDateTimeActualUtc, ianaTimeZone);
 
         if (isNaN(eventStartDateTimeInTargetTZ.getTime())) {
             console.error(`[REMINDERS] Final date conversion resulted in NaN for event ${event.id} using string "${dateTimeStrForZone}" and timezone "${ianaTimeZone}"`);
             throw new Error("Final date conversion resulted in NaN for event start time");
         }
         
-        // Логирование для отладки дат
-        // console.log(`[REMINDERS] Processing Event: "${event.title}" (ID: ${event.id})`);
-        // console.log(`  DB Date: ${event.event_date}, DB Time: ${event.start_time}`);
-        // console.log(`  Interpreted as Zoned Time (${ianaTimeZone}): ${formatInTimeZone(eventStartDateTimeInTargetTZ, ianaTimeZone, 'yyyy-MM-dd HH:mm:ssXXX')}`);
-        // console.log(`  Equivalent UTC: ${eventStartDateTimeUtc.toISOString()}`);
-        
         const reminderTimeInTargetTZ = addMinutes(eventStartDateTimeInTargetTZ, -event.reminder_minutes);
 
         const reminderTimeMinuteStart = new Date(
-            reminderTimeInTargetTZ.getFullYear(),
-            reminderTimeInTargetTZ.getMonth(),
-            reminderTimeInTargetTZ.getDate(),
-            reminderTimeInTargetTZ.getHours(),
-            reminderTimeInTargetTZ.getMinutes(),
-            0, 0
+            reminderTimeInTargetTZ.getFullYear(), reminderTimeInTargetTZ.getMonth(), reminderTimeInTargetTZ.getDate(),
+            reminderTimeInTargetTZ.getHours(), reminderTimeInTargetTZ.getMinutes(), 0, 0
         );
         const currentTimeMinuteStart = new Date(
-            currentDateTimeInTargetTZObject.getFullYear(),
-            currentDateTimeInTargetTZObject.getMonth(),
-            currentDateTimeInTargetTZObject.getDate(),
-            currentDateTimeInTargetTZObject.getHours(),
-            currentDateTimeInTargetTZObject.getMinutes(),
-            0, 0
+            currentDateTimeInTargetTZObject.getFullYear(), currentDateTimeInTargetTZObject.getMonth(), currentDateTimeInTargetTZObject.getDate(),
+            currentDateTimeInTargetTZObject.getHours(), currentDateTimeInTargetTZObject.getMinutes(), 0, 0
         );
         
-        console.log(`[REMINDERS] Event: "${event.title}" (Eval), Actual Start in TZ: ${dateFnsTz.formatInTimeZone(eventStartDateTimeInTargetTZ, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}, Calculated Reminder Time in TZ: ${dateFnsTz.formatInTimeZone(reminderTimeMinuteStart, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}`);
+        console.log(`[REMINDERS] Event: "${event.title}" (Eval), Actual Start in TZ: ${formatInTimeZone(eventStartDateTimeInTargetTZ, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}, Calculated Reminder Time in TZ: ${formatInTimeZone(reminderTimeMinuteStart, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}`);
 
         if (reminderTimeMinuteStart.getTime() === currentTimeMinuteStart.getTime()) {
           console.log(`[REMINDERS] Sending reminder for event: "${event.title}"`);
@@ -126,12 +113,9 @@ export async function GET(request: Request) {
 
           const message = `
 🔔 <b>Event Reminder!</b>
-
 📅 <b>${event.title}</b> is starting in ${event.reminder_minutes} minutes!
-
 ⏰ <b>Time:</b> ${event.start_time}${event.end_time ? ` - ${event.end_time}` : ""} (${targetTimeZone.split('/')[1] || targetTimeZone})
-🗓 <b>Date:</b> ${dateFnsTz.formatInTimeZone(eventDateForDisplay, targetTimeZone, "eeee, MMMM d, yyyy")}${event.location ? `\n📍 <b>Location:</b> ${event.location}` : ""}${event.description ? `\n\n📝 <b>Description:</b> ${event.description}` : ""}
-
+🗓 <b>Date:</b> ${formatInTimeZone(eventDateForDisplay, targetTimeZone, "eeee, MMMM d, yyyy")}${event.location ? `\n📍 <b>Location:</b> ${event.location}` : ""}${event.description ? `\n\n📝 <b>Description:</b> ${event.description}` : ""}
 ✨ <i>Get ready!</i>
           `.trim();
 
