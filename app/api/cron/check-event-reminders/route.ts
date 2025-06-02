@@ -1,7 +1,7 @@
 // /app/api/cron/check-event-reminders/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
-import { formatInTimeZone, toDate, zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
+import * as dateFnsTz from 'date-fns-tz';
 import { addMinutes, parse } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
@@ -21,9 +21,9 @@ export async function GET(request: Request) {
     console.log(`🔄 [REMINDERS] Checking for event reminders (target timezone: ${targetTimeZone})...`);
 
     const nowUtc = new Date();
-    const currentDateTimeInTargetTZObject = toDate(nowUtc, { timeZone: targetTimeZone });
+    const currentDateTimeInTargetTZObject = dateFnsTz.toDate(nowUtc, { timeZone: targetTimeZone });
 
-    console.log(`[REMINDERS] Current datetime in ${targetTimeZone}: ${formatInTimeZone(currentDateTimeInTargetTZObject, targetTimeZone, 'yyyy-MM-dd HH:mm:ssXXX')}`);
+    console.log(`[REMINDERS] Current datetime in ${targetTimeZone}: ${dateFnsTz.formatInTimeZone(currentDateTimeInTargetTZObject, targetTimeZone, 'yyyy-MM-dd HH:mm:ssXXX')}`);
     console.log(`[REMINDERS] (Server UTC time was: ${nowUtc.toISOString()})`);
 
     const { data: events, error } = await supabase
@@ -78,8 +78,8 @@ export async function GET(request: Request) {
         const ianaTimeZone = targetTimeZone;
         const dateTimeStrForZone = `${dateString}T${timeString}`; // "YYYY-MM-DDTHH:MM:SS"
 
-        eventStartDateTimeUtc = zonedTimeToUtc(dateTimeStrForZone, ianaTimeZone);
-        eventStartDateTimeInTargetTZ = utcToZonedTime(eventStartDateTimeUtc, ianaTimeZone);
+        eventStartDateTimeUtc = dateFnsTz.zonedTimeToUtc(dateTimeStrForZone, ianaTimeZone);
+        eventStartDateTimeInTargetTZ = dateFnsTz.utcToZonedTime(eventStartDateTimeUtc, ianaTimeZone);
 
         if (isNaN(eventStartDateTimeInTargetTZ.getTime())) {
             console.error(`[REMINDERS] Final date conversion resulted in NaN for event ${event.id} using string "${dateTimeStrForZone}" and timezone "${ianaTimeZone}"`);
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
             0, 0
         );
         
-        console.log(`[REMINDERS] Event: "${event.title}" (Eval), Actual Start in TZ: ${formatInTimeZone(eventStartDateTimeInTargetTZ, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}, Calculated Reminder Time in TZ: ${formatInTimeZone(reminderTimeMinuteStart, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}`);
+        console.log(`[REMINDERS] Event: "${event.title}" (Eval), Actual Start in TZ: ${dateFnsTz.formatInTimeZone(eventStartDateTimeInTargetTZ, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}, Calculated Reminder Time in TZ: ${dateFnsTz.formatInTimeZone(reminderTimeMinuteStart, targetTimeZone, 'yyyy-MM-dd HH:mm:ss')}`);
 
         if (reminderTimeMinuteStart.getTime() === currentTimeMinuteStart.getTime()) {
           console.log(`[REMINDERS] Sending reminder for event: "${event.title}"`);
@@ -130,7 +130,7 @@ export async function GET(request: Request) {
 📅 <b>${event.title}</b> is starting in ${event.reminder_minutes} minutes!
 
 ⏰ <b>Time:</b> ${event.start_time}${event.end_time ? ` - ${event.end_time}` : ""} (${targetTimeZone.split('/')[1] || targetTimeZone})
-🗓 <b>Date:</b> ${formatInTimeZone(eventDateForDisplay, targetTimeZone, "eeee, MMMM d, yyyy")}${event.location ? `\n📍 <b>Location:</b> ${event.location}` : ""}${event.description ? `\n\n📝 <b>Description:</b> ${event.description}` : ""}
+🗓 <b>Date:</b> ${dateFnsTz.formatInTimeZone(eventDateForDisplay, targetTimeZone, "eeee, MMMM d, yyyy")}${event.location ? `\n📍 <b>Location:</b> ${event.location}` : ""}${event.description ? `\n\n📝 <b>Description:</b> ${event.description}` : ""}
 
 ✨ <i>Get ready!</i>
           `.trim();
